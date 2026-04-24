@@ -107,7 +107,8 @@ def get_fresh_cookies():
                 print(f"Still waiting for Duo approval... ({i}s)")
         
         else:
-            # Runs if loop completes without breaking — means we never landed on TigerNet
+            # Runs if loop completes without breaking
+            # means we never landed on TigerNet
             raise Exception("Timed out waiting for Duo approval after 2 minutes")
         
         # Wait a moment for all cookies to be fully set after login
@@ -148,15 +149,28 @@ def get_csrf_token(hivebrite_session, remember_user_token):
         headers=headers
     )
     
-    # The CSRF token is in a meta tag:
-    # <meta content="TOKEN_VALUE" name="csrf-token" />
-    match = re.search(r'content="([^"]+)" name="csrf-token"', page_resp.text)
+    # Try multiple regex patterns since Hivebrite uses different
+    # attribute orderings across different page types
+    patterns = [
+        r'content="([^"]+)"\s+name="csrf-token"',
+        r'name="csrf-token"\s+content="([^"]+)"',
+        r'csrf-token["\s]+content="([^"]+)"',
+        r'"csrf_token":"([^"]+)"',
+        r'X-CSRF-Token["\s:]+([A-Za-z0-9+/=_\-]+)',
+    ]
     
-    if match:
-        csrf_token = match.group(1)
-        print("CSRF token obtained successfully")
-        return csrf_token
+    for pattern in patterns:
+        match = re.search(pattern, page_resp.text)
+        if match:
+            csrf_token = match.group(1)
+            print("CSRF token obtained successfully")
+            return csrf_token
     
-    # Fall back to the value in .env if we couldn't find it
-    print("Could not find CSRF token in page — falling back to .env value")
+    # If none of the patterns matched print a snippet of the page
+    # so we can see what format the token is actually in
+    print("Could not find CSRF token — printing page snippet for debugging:")
+    print(page_resp.text[:500])
+    
+    # Fall back to the value in .env
+    print("Falling back to .env CSRF token")
     return os.getenv("CSRF_TOKEN", "")
