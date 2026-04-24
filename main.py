@@ -5,6 +5,7 @@ import os        # used to check if progress file exists
 # Import our two custom modules
 from tigernet_client import get_user_list, get_user_profile    # handles all API calls to TigerNet
 from csv_creation_tool import flatten_user, write_rows          # handles turning API data into CSV rows
+from auth import get_fresh_cookies, get_csrf_token
 
 # How many users to fetch per page — 100 is the maximum TigerNet allows
 PER_PAGE = 100
@@ -47,23 +48,55 @@ def save_progress(last_completed_page, processed_ids):
 
 
 def main():
+    # Try to get fresh cookies via Playwright login
+    # This handles the full CAS + Duo authentication automatically
+    print("Logging into TigerNet...")
+    
+    try:
+        # Launch browser, fill credentials, wait for Duo approval
+        cookies = get_fresh_cookies()
+        
+        # Use the fresh session cookie to get a valid CSRF token
+        csrf_token = get_csrf_token(
+            cookies["hivebrite_session"],
+            cookies["remember_user_token"]
+        )
+        
+        # Write the fresh cookies back to .env so tigernet_client.py can use them
+        # This updates the values in memory for this run
+        os.environ["HIVEBRITE_SESSION"] = cookies["hivebrite_session"]
+        os.environ["REMEMBER_USER_TOKEN"] = cookies["remember_user_token"]
+        os.environ["CSRF_TOKEN"] = csrf_token
+        
+        print(f"Authentication successful")
+        
+    except Exception as e:
+        # If Playwright login fails fall back to cookies already in .env
+        print(f"Playwright login failed: {e}")
+        print("Falling back to cookies in .env file...")
+        
+        # Check that fallback cookies exist
+        if not os.getenv("HIVEBRITE_SESSION"):
+            print("No cookies found in .env either — cannot proceed")
+            print("Add PRINCETON_NETID and PRINCETON_PASSWORD to .env and try again")
+            return
+            
     # Load any existing progress from a previous run
     progress = load_progress()
-    
+
     # Figure out which page to start from
-    # If this is a fresh run start_page will be 1
-    # If we're resuming it will be the page after the last one we completed
     start_page = progress["last_completed_page"] + 1
-    
+
     # Convert processed IDs to a set for fast lookup
-    # Sets are much faster than lists for checking if something is already in there
     processed_ids = set(progress["processed_ids"])
-    
-    print(f"Starting from page {start_page}")
-    print(f"Already processed {len(processed_ids)} users from previous runs")
-    
+
     # Keep track of what page we're on
     page = start_page
+
+    print(f"Starting from page {page}")
+    print(f"Already processed {len(processed_ids)} users from previous runs")
+        
+  
     
     # Keep looping until we've gone through all pages
     while True:
