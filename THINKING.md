@@ -10,6 +10,10 @@ Here, my first instinct was to go into DevTools after inspecting TigerNet to try
 
 3. Technical Tradeoffs: What tradeoffs did you encounter and how did you decide?
 Speed vs. reliability? Complexity vs. maintainability? Be specific.
+- Speed vs Reliability: Given that there were over 130,000 users and two API endpoints per user, there were at minimym 260,000 requests to be made. I initially set a delay between requests for 0.5 seconds with the logic that if I didn't there was a greater chance at being blocked. I was okay with the tradeoff of flightly more time between requests if it meant that the scraping process wa faster. 
+- Progress Tracking: I initially did not inculde a progress tracker, and wrote a scraper to loop through all of the pages in one run. Howver, when running a test I realized I exited out of the file and had to start from scratch with generating my csv. The proress.json saves th elst completed page and all of the processed user ID's after every page, so if the script crashes or the session expires it can pick up where it left off. 
+- I used Python as my language of choice because it seemed natural for data pipeline work. I've used Python to generate csv outputs before and Playwright upon research seemed good for browser automation. 
+- I separated the files into the tigernet_clinet file, the main.py file and the csv_creation_tool.py files for modularity so that testing and debugging was more manageable. 
 
 4. Obstacles &amp; Solutions: What broke? What surprised you? How did you debug it? Don’t sanitize this — we want the raw story.
 
